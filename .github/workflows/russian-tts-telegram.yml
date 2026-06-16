@@ -51,7 +51,7 @@ jobs:
       - name: Cài PyTorch CPU + deps
         run: |
           pip install --index-url https://download.pytorch.org/whl/cpu torch
-          pip install omegaconf numpy
+          pip install omegaconf numpy lameenc
 
       - name: Trích khối tiếng Nga (TTS_START..TTS_END)
         env:
@@ -71,11 +71,14 @@ jobs:
           print(f"Đã trích {len(lines)} dòng tiếng Nga.")
           PY
 
-      - name: Tổng hợp giọng nói (Silero v4_ru, xenia)
+      - name: Tổng hợp giọng nói + MP3 (Silero v4_ru, xenia)
+        env:
+          MP3: ${{ steps.pick.outputs.mp3 }}
         run: |
           python - <<'PY'
-          import torch, re, pathlib, wave
+          import os, re, pathlib, torch
           import numpy as np
+          import lameenc
           torch.set_num_threads(2)
           model, _ = torch.hub.load('snakers4/silero-models', 'silero_tts',
                                     language='ru', speaker='v4_ru', trust_repo=True)
@@ -96,18 +99,16 @@ jobs:
                                             sample_rate=SR, put_accent=True, put_yo=True))
           wav = torch.cat(audios).clamp(-1.0, 1.0)
           pcm = (wav * 32767.0).to(torch.int16).cpu().numpy()
-          with wave.open('out.wav', 'wb') as w:
-              w.setnchannels(1)
-              w.setsampwidth(2)
-              w.setframerate(SR)
-              w.writeframes(pcm.tobytes())
-          print("Đã tạo out.wav")
+          enc = lameenc.Encoder()
+          enc.set_bit_rate(96)
+          enc.set_in_sample_rate(SR)
+          enc.set_channels(1)
+          enc.set_quality(2)
+          mp3 = enc.encode(pcm.tobytes()) + enc.flush()
+          out = os.environ['MP3']
+          pathlib.Path(out).write_bytes(mp3)
+          print(f"Đã tạo {out} ({len(mp3)} bytes)")
           PY
-
-      - name: Chuyển sang MP3
-        env:
-          MP3: ${{ steps.pick.outputs.mp3 }}
-        run: ffmpeg -y -i out.wav -codec:a libmp3lame -b:a 96k "$MP3"
 
       - name: Commit MP3 vào repo
         uses: stefanzweifel/git-auto-commit-action@v7
