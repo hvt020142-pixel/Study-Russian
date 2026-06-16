@@ -50,8 +50,8 @@ jobs:
 
       - name: Cài PyTorch CPU + deps
         run: |
-          pip install --index-url https://download.pytorch.org/whl/cpu torch torchaudio
-          pip install omegaconf torchcodec
+          pip install --index-url https://download.pytorch.org/whl/cpu torch
+          pip install omegaconf numpy
 
       - name: Trích khối tiếng Nga (TTS_START..TTS_END)
         env:
@@ -74,7 +74,8 @@ jobs:
       - name: Tổng hợp giọng nói (Silero v4_ru, xenia)
         run: |
           python - <<'PY'
-          import torch, torchaudio, re, pathlib
+          import torch, re, pathlib, wave
+          import numpy as np
           torch.set_num_threads(2)
           model, _ = torch.hub.load('snakers4/silero-models', 'silero_tts',
                                     language='ru', speaker='v4_ru', trust_repo=True)
@@ -93,7 +94,13 @@ jobs:
           for ch in chunks:
               audios.append(model.apply_tts(text=ch + ' ..', speaker='xenia',
                                             sample_rate=SR, put_accent=True, put_yo=True))
-          torchaudio.save('out.wav', torch.cat(audios).unsqueeze(0), SR)
+          wav = torch.cat(audios).clamp(-1.0, 1.0)
+          pcm = (wav * 32767.0).to(torch.int16).cpu().numpy()
+          with wave.open('out.wav', 'wb') as w:
+              w.setnchannels(1)
+              w.setsampwidth(2)
+              w.setframerate(SR)
+              w.writeframes(pcm.tobytes())
           print("Đã tạo out.wav")
           PY
 
