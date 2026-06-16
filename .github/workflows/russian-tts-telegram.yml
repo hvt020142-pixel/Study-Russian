@@ -50,7 +50,7 @@ jobs:
 
       - name: Cài PyTorch CPU + deps
         run: |
-          pip install --index-url https://download.pytorch.org/whl/cpu torch torchaudio torchcodec
+          pip install --index-url https://download.pytorch.org/whl/cpu torch torchaudio
           pip install omegaconf torchcodec
 
       - name: Trích khối tiếng Nga (TTS_START..TTS_END)
